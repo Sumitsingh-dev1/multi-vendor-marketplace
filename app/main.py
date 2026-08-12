@@ -11,7 +11,9 @@ from app.core.security import hash_password,verify_password
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from app.core.jwt import create_access_token,decode_access_token
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from jwt.exceptions import InvalidTokenError
 
 
 
@@ -26,8 +28,7 @@ app = FastAPI(
     title="Multi-Vendor Marketplace API",
     version="1.0.0"
 )
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+security = HTTPBearer()
 
 
 @app.get("/")
@@ -107,16 +108,17 @@ def login(
         "token_type": "bearer"
     }
 def get_current_customer(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials= Depends(security),
     db: Session = Depends(get_db)
 ):
+    token = credentials.credentials
     try:
         payload = decode_access_token(token)
-    except Exception:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token"
-        )
+    except InvalidTokenError:
+      raise HTTPException(
+        status_code=401,
+        detail="Invalid or expired token"
+    )
 
     customer_id = payload.get("sub")
 
@@ -141,8 +143,11 @@ def get_current_customer(
     return customer
 @app.get("/customers/me")
 def get_my_profile(
-    authorization: str = Header(...)
+    customer: Customer = Depends(get_current_customer)
 ):
     return {
-        "authorization": authorization
+        "id": customer.id,
+        "name": customer.name,
+        "email": customer.email,
+        "phone": customer.phone
     }
