@@ -1,9 +1,9 @@
 from fastapi import FastAPI,HTTPException,Depends,Header
 from sqlalchemy import text
-from app.schemas.customer import  CustomerCreate,LoginRequest
+from app.schemas.customer import  CustomerCreate,LoginRequest,ProductCreate
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.customer import Customer
+from app.models.customer import Customer,Product,UserRole
 from fastapi import Depends
 from app.core.config import settings
 from app.database import engine
@@ -150,4 +150,36 @@ def get_my_profile(
         "name": customer.name,
         "email": customer.email,
         "phone": customer.phone
+    }
+def require_seller(
+    customer: Customer = Depends(get_current_customer)
+):
+    if customer.role != UserRole.SELLER:
+        raise HTTPException(
+            status_code=403,
+            detail="Seller access required"
+        )
+
+    return customer
+@app.post("/products")
+def create_product(
+    data: ProductCreate,
+    customer: Customer = Depends(require_seller),
+    db: Session = Depends(get_db)
+):
+    product = Product(
+        name=data.name,
+        description=data.description,
+        price=data.price,
+        stock=data.stock,
+        seller_id=customer.id
+    )
+
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "message": "Product created successfully",
+        "product_id": product.id
     }
