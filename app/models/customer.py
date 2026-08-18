@@ -12,7 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum as SQLEnum,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column,relationship
 
 class UserRole(str, PyEnum):
     CUSTOMER = "customer"
@@ -33,8 +33,11 @@ class Customer(Base):
     role: Mapped[UserRole] = mapped_column(
     SQLEnum(UserRole, name="userrole"),
     default=UserRole.CUSTOMER,
-    nullable=False
+    nullable=False)
+    seller_listings: Mapped[list["SellerProduct"]] = relationship(
+    back_populates="seller"
 )
+
   
     
 class Product(Base):
@@ -48,6 +51,9 @@ class Product(Base):
         Text,
         nullable=True
     )
+    seller_listings: Mapped[list["SellerProduct"]] = relationship(
+    back_populates="product"
+)
 
     
   
@@ -80,4 +86,11 @@ class SellerProduct(Base):
     created_at : Mapped[datetime] = mapped_column(
         default=datetime.utcnow,
         nullable=False)
-     
+    seller: Mapped["Customer"] = relationship(
+    back_populates="seller_listings"
+)
+    product: Mapped["Product"] = relationship(
+    back_populates="seller_listings"
+)
+    
+  

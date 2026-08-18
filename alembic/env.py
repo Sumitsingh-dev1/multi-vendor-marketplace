@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 from app.database import Base
-from app.models.customer import Customer
+from app.models.customer import Customer, Product, SellerProduct
 from app.core.config import settings
 
 
