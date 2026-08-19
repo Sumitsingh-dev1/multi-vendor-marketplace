@@ -54,6 +54,13 @@ class Product(Base):
     seller_listings: Mapped[list["SellerProduct"]] = relationship(
     back_populates="product"
 )
+    category_id: Mapped[int] = mapped_column(
+    ForeignKey("categories.id"),
+    nullable=False
+)
+    category: Mapped["Category"] = relationship(
+    back_populates="products"
+)
 
     
   
@@ -92,5 +99,33 @@ class SellerProduct(Base):
     product: Mapped["Product"] = relationship(
     back_populates="seller_listings"
 )
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    products: Mapped[list["Product"]] = relationship(
+    back_populates="category"
+)
+
+
     
   
