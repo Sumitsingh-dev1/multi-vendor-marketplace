@@ -1,6 +1,6 @@
 import jwt
 
-from jwt.exceptions import InvalidTokenError
+
 
 from app.core.config import settings
 from datetime import datetime, timedelta, timezone
@@ -18,11 +18,13 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
-        algorithm="HS256"
+        settings.algorithm
+       
     )
 def decode_access_token(token: str) -> dict:
     return jwt.decode(
         token,
         settings.SECRET_KEY,
-        algorithms=["HS256"]
+        settings.algorithm
+        
     )

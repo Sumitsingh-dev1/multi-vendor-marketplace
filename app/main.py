@@ -1,34 +1,33 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
+from fastapi import FastAPI,HTTPException,Depends
 from sqlalchemy import text
-from app.schemas.customer import  CustomerCreate,LoginRequest,ProductCreate
+from app.schemas.customer import  CustomerCreate,LoginRequest
 from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from app.models.customer import Customer,Product,UserRole
+from app.models.customer import Customer
 from fastapi import Depends
-from app.core.config import settings
 from app.database import engine
 from app.core.security import hash_password,verify_password
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
-from app.core.jwt import create_access_token,decode_access_token
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.core.jwt import create_access_token
+from app.api.routes.product import router as products_router
+from app.api.routes.categories import router as categories_router
+from app.dependencies import get_db,get_current_customer
+from app.api.routes.categories import router as categories_router
+from app.api.routes.seller_products import router as seller_products_router
 
-from jwt.exceptions import InvalidTokenError
-
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 app = FastAPI(
     title="Multi-Vendor Marketplace API",
     version="1.0.0"
 )
-security = HTTPBearer()
+app.include_router(products_router)
+app.include_router(categories_router)
+app.include_router(seller_products_router)
+
+
+
+
+
 
 
 @app.get("/")
@@ -107,40 +106,7 @@ def login(
         "access_token": token,
         "token_type": "bearer"
     }
-def get_current_customer(
-    credentials: HTTPAuthorizationCredentials= Depends(security),
-    db: Session = Depends(get_db)
-):
-    token = credentials.credentials
-    try:
-        payload = decode_access_token(token)
-    except InvalidTokenError:
-      raise HTTPException(
-        status_code=401,
-        detail="Invalid or expired token"
-    )
 
-    customer_id = payload.get("sub")
-
-    if customer_id is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token"
-        )
-
-    statement = select(Customer).where(
-        Customer.id == int(customer_id)
-    )
-
-    customer = db.execute(statement).scalar_one_or_none()
-
-    if customer is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Customer not found"
-        )
-
-    return customer
 @app.get("/customers/me")
 def get_my_profile(
     customer: Customer = Depends(get_current_customer)
@@ -151,35 +117,4 @@ def get_my_profile(
         "email": customer.email,
         "phone": customer.phone
     }
-def require_seller(
-    customer: Customer = Depends(get_current_customer)
-):
-    if customer.role != UserRole.SELLER:
-        raise HTTPException(
-            status_code=403,
-            detail="Seller access required"
-        )
 
-    return customer
-@app.post("/products")
-def create_product(
-    data: ProductCreate,
-    customer: Customer = Depends(require_seller),
-    db: Session = Depends(get_db)
-):
-    product = Product(
-        name=data.name,
-        description=data.description,
-        price=data.price,
-        stock=data.stock,
-        seller_id=customer.id
-    )
-
-    db.add(product)
-    db.commit()
-    db.refresh(product)
-
-    return {
-        "message": "Product created successfully",
-        "product_id": product.id
-    }
