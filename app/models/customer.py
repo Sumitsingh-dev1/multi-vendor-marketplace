@@ -13,7 +13,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from app.models.order import  OrderItemStatus
 
 class UserRole(str, PyEnum):
     CUSTOMER = "customer"
@@ -104,13 +104,10 @@ class Product(Base):
         back_populates="products"
     )
 
-
 class SellerProduct(Base):
     __tablename__ = "seller_products"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     seller_id: Mapped[int] = mapped_column(
         ForeignKey("customers.id"),
@@ -161,6 +158,7 @@ class SellerProduct(Base):
     cart_items: Mapped[list["CartItem"]] = relationship(
         back_populates="seller_product"
     )
+   
 
 
 class Category(Base):

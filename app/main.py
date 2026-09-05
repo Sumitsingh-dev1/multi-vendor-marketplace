@@ -15,6 +15,7 @@ from app.dependencies import get_db,get_current_customer
 from app.api.routes.categories import router as categories_router
 from app.api.routes.seller_products import router as seller_products_router
 from app.api.routes.Cart import router as cart_router
+from app.api.routes.order import router as Orders
 
 
 
@@ -26,6 +27,7 @@ app.include_router(products_router)
 app.include_router(categories_router)
 app.include_router(seller_products_router)
 app.include_router(cart_router)
+app.include_router(Orders)
 
 
 
