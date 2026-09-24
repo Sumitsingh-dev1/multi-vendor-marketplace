@@ -5,13 +5,13 @@ from app.database import Base
 
 from sqlalchemy import (
     String,
-    Boolean,
-    Text,
     Numeric,
     Integer,
     ForeignKey,
     Enum as SQLEnum,
+    Float
 )
+
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -38,6 +38,36 @@ class Order(Base):
 
     customer_id: Mapped[int] = mapped_column(
         ForeignKey("customers.id"),
+        nullable=False
+    )
+
+    delivery_address_line: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    delivery_city: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    delivery_state: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    delivery_postal_code: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False
+    )
+
+    delivery_latitude: Mapped[float] = mapped_column(
+        Float,
+        nullable=False
+    )
+
+    delivery_longitude: Mapped[float] = mapped_column(
+        Float,
         nullable=False
     )
 
@@ -79,7 +109,10 @@ class OrderItem(Base):
     )
 
     status: Mapped[OrderItemStatus] = mapped_column(
-        SQLEnum(OrderItemStatus, name="orderitemstatus"),
+        SQLEnum(
+            OrderItemStatus,
+            name="orderitemstatus"
+        ),
         default=OrderItemStatus.PENDING,
         nullable=False
     )

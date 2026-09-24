@@ -5,7 +5,24 @@ from sqlalchemy import pool
 
 from alembic import context
 from app.database import Base
-from app.models.customer import Customer, Product, SellerProduct,Category
+from app.models.customer import (
+    Customer,
+    Product,
+    SellerProduct,
+    Category,
+    Cart,
+    CartItem
+)
+
+from app.models.order import (
+    Order,
+    OrderItem
+)
+
+from app.models.address import (
+    Address
+)
+from app.models.seller_service_area import SellerServiceArea
 from app.core.config import settings
 
 

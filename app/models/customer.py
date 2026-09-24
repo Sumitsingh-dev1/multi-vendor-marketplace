@@ -13,7 +13,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.order import  OrderItemStatus
+from app.models.address import Address
 
 class UserRole(str, PyEnum):
     CUSTOMER = "customer"
@@ -72,6 +72,10 @@ class Customer(Base):
         back_populates="customer",
         uselist=False
     )
+    addresses: Mapped[list["Address"]] = relationship(
+    back_populates="customer",
+    cascade="all, delete-orphan"
+)
 
 
 class Product(Base):
