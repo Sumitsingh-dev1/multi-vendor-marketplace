@@ -6,10 +6,16 @@ class Settings(BaseSettings):
     SECRET_KEY : str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     algorithm: str 
+
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USER: str
+    SMTP_PASSWORD: str
+    SMTP_FROM: str
     
 
     class Config:
-        env_file = ".env",
+        env_file = ".env"
         extra = "ignore"
 
 

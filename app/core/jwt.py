@@ -9,11 +9,16 @@ from datetime import datetime, timedelta, timezone
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + timedelta(
+    now = datetime.now(timezone.utc)
+
+    expire = now + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "iat": now,
+        "exp": expire
+    })
 
     return jwt.encode(
         to_encode,

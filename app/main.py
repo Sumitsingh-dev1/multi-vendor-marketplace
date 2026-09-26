@@ -20,8 +20,12 @@ from app.api.routes.Cart import router as cart_router
 from app.api.routes.order import router as Orders
 from app.api.routes import seller_service_area
 from app.api.routes.address import router as addresses
+from app.api.routes.delivery_assignment import (
+    router as delivery_assignment_router
+)
+from app.api.routes.password_reset import router as password_reset_router
 
-
+from datetime import datetime, timezone
 app = FastAPI(
     title="Multi-Vendor Marketplace API",
     version="1.0.0"
@@ -39,7 +43,8 @@ app.include_router(cart_router)
 app.include_router(Orders)
 app.include_router(seller_service_area.router)
 app.include_router(addresses)
-
+app.include_router(delivery_assignment_router)
+app.include_router(password_reset_router)
 
 # =========================================================
 # HOME

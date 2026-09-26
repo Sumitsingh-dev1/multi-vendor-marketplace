@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     Enum as SQLEnum,
+    DateTime
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.address import Address
@@ -19,6 +20,7 @@ class UserRole(str, PyEnum):
     CUSTOMER = "customer"
     SELLER = "seller"
     ADMIN = "admin"
+    DELIVERY_AGENT = "delivery_agent"
 
 
 class Customer(Base):
@@ -76,6 +78,26 @@ class Customer(Base):
     back_populates="customer",
     cascade="all, delete-orphan"
 )
+    delivery_assignments = relationship(
+    "DeliveryAssignment",
+    foreign_keys="DeliveryAssignment.delivery_agent_id",
+    back_populates="delivery_agent"
+)
+
+    assigned_delivery_assignments = relationship(
+      "DeliveryAssignment",
+      foreign_keys="DeliveryAssignment.assigned_by",
+       back_populates="assigned_by_admin"
+)
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+    DateTime(timezone=True),
+    nullable=True
+)
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
+    back_populates="customer",
+    cascade="all, delete-orphan"
+)
+   
 
 
 class Product(Base):

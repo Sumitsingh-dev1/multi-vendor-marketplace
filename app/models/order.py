@@ -12,7 +12,7 @@ from sqlalchemy import (
     Float
 )
 
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column,relationship
 
 
 class OrderStatus(str, PyEnum):
@@ -81,6 +81,11 @@ class Order(Base):
         default=datetime.utcnow,
         nullable=False
     )
+    delivery_assignment = relationship(
+    "DeliveryAssignment",
+    back_populates="order",
+    uselist=False
+)
 
 
 class OrderItem(Base):

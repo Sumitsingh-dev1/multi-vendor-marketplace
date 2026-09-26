@@ -23,6 +23,8 @@ from app.models.address import (
     Address
 )
 from app.models.seller_service_area import SellerServiceArea
+from app.models.delivery_assignment import DeliveryAssignment
+from app.models.password_reset_token import PasswordResetToken
 from app.core.config import settings
 
 

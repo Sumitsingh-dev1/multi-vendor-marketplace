@@ -6,6 +6,7 @@ from app.database import SessionLocal
 from app.models.customer import Customer, UserRole
 from app.core.jwt import decode_access_token
 from jwt.exceptions import InvalidTokenError
+from datetime import datetime, timezone
 
 
 security = HTTPBearer()
@@ -40,6 +41,9 @@ def get_current_customer(
             status_code=401,
             detail="Invalid token"
         )
+    
+    
+    
 
     statement = select(Customer).where(
         Customer.id == int(customer_id)
@@ -52,6 +56,16 @@ def get_current_customer(
             status_code=401,
             detail="Customer not found"
         )
+    token_iat = payload.get("iat")
+    if(
+         customer.password_changed_at is not None
+             and token_iat is not None
+           and token_iat < customer.password_changed_at.timestamp()
+):
+     raise HTTPException(
+        status_code=401,
+        detail="Session expired. Please log in again."
+    )
 
     return customer
 
