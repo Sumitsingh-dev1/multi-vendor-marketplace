@@ -1,17 +1,14 @@
-from datetime import datetime
-from enum import Enum as PyEnum
+from typing import TYPE_CHECKING
 from sqlalchemy import (
     String,
-    Boolean,
-    Text,
-    Numeric,
-    Integer,
     Float,
     ForeignKey,
-    Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column,relationship
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.customer import Customer
 
 class Address(Base):
     __tablename__ = "addresses"

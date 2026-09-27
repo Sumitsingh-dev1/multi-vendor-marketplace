@@ -18,3 +18,7 @@ class DeliveryAssignmentResponse(BaseModel):
     assigned_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DeliveryStatusUpdate(BaseModel):
+    status: DeliveryAssignmentStatus

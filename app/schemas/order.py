@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from app.models.order import OrderStatus, OrderItemStatus
-
+from app.models.delivery_assignment import DeliveryAssignmentStatus
 
 class OrderResponse(BaseModel):
     order_id: int
@@ -74,10 +74,10 @@ class OrderItemResponse(BaseModel):
     price: float
     status: OrderItemStatus
 
-
 class OrderDetailResponse(BaseModel):
     order_id: int
     status: str
+    delivery_status: DeliveryAssignmentStatus | None = None
 
     delivery_address_line: str
     delivery_city: str
@@ -87,7 +87,6 @@ class OrderDetailResponse(BaseModel):
     delivery_longitude: float
 
     items: list[OrderItemResponse]
-
 
 class SellerOrderItemResponse(BaseModel):
     order_id: int

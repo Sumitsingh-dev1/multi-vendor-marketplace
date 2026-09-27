@@ -5,25 +5,22 @@ from sqlalchemy import pool
 
 from alembic import context
 from app.database import Base
-from app.models.customer import (
-    Customer,
-    Product,
-    SellerProduct,
-    Category,
-    Cart,
-    CartItem
-)
+from app.database import Base
 
-from app.models.order import (
-    Order,
-    OrderItem
-)
-
-from app.models.address import (
-    Address
-)
+from app.models.customer import Customer, UserRole
+from app.models.product import Product
+from app.models.seller_product import SellerProduct
+from app.models.category import Category
+from app.models.cart import Cart
+from app.models.cart_item import CartItem
+from app.models.address import Address
 from app.models.seller_service_area import SellerServiceArea
-from app.models.delivery_assignment import DeliveryAssignment
+from app.models.order import Order, OrderStatus, OrderItemStatus
+from app.models.order_item import OrderItem
+from app.models.delivery_assignment import (
+    DeliveryAssignment,
+    DeliveryAssignmentStatus,
+)
 from app.models.password_reset_token import PasswordResetToken
 from app.core.config import settings
 

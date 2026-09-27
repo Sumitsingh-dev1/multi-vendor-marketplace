@@ -90,3 +90,13 @@ def require_admin(
         )
 
     return customer
+def require_delivery_agent(
+    customer: Customer = Depends(get_current_customer)
+):
+    if customer.role != UserRole.DELIVERY_AGENT:
+        raise HTTPException(
+            status_code=403,
+            detail="Delivery agent access required"
+        )
+
+    return customer

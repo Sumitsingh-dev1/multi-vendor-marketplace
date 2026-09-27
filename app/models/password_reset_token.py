@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-
+from typing import TYPE_CHECKING
 from app.database import Base
 
 from sqlalchemy import (
@@ -10,7 +10,8 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+if TYPE_CHECKING:
+    from app.models.customer import Customer
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
@@ -45,8 +46,7 @@ class PasswordResetToken(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
+    customer: Mapped["Customer"] = relationship(
+    back_populates="password_reset_tokens"
+)
 
-    customer = relationship(
-        "Customer",
-        back_populates="password_reset_tokens"
-    )

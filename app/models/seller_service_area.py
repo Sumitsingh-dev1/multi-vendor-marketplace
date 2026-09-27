@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from app.database import Base
 
 from sqlalchemy import (
@@ -9,6 +10,8 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship
 )
+if TYPE_CHECKING:
+    from app.models.customer import Customer
 
 
 class SellerServiceArea(Base):

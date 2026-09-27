@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum as PyEnum
-
+from typing import TYPE_CHECKING
 from app.database import Base
 
 from sqlalchemy import (
@@ -13,7 +13,8 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.orm import Mapped, mapped_column,relationship
-
+if TYPE_CHECKING:
+    from app.models.delivery_assignment import DeliveryAssignment
 
 class OrderStatus(str, PyEnum):
     PENDING = "pending"
@@ -81,43 +82,11 @@ class Order(Base):
         default=datetime.utcnow,
         nullable=False
     )
-    delivery_assignment = relationship(
-    "DeliveryAssignment",
-    back_populates="order",
-    uselist=False
+    delivery_assignments: Mapped[
+        list["DeliveryAssignment"]
+        ] = relationship(
+         back_populates="order"
 )
-
-
-class OrderItem(Base):
-    __tablename__ = "order_items"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    order_id: Mapped[int] = mapped_column(
-        ForeignKey("orders.id"),
-        nullable=False
-    )
-
-    seller_product_id: Mapped[int] = mapped_column(
-        ForeignKey("seller_products.id"),
-        nullable=False
-    )
-
-    quantity: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False
-    )
-
-    price: Mapped[float] = mapped_column(
-        Numeric(10, 2),
-        nullable=False
-    )
-
-    status: Mapped[OrderItemStatus] = mapped_column(
-        SQLEnum(
-            OrderItemStatus,
-            name="orderitemstatus"
-        ),
-        default=OrderItemStatus.PENDING,
-        nullable=False
-    )
+    
+    
+    
