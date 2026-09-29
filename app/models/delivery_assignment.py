@@ -61,12 +61,13 @@ class DeliveryAssignment(Base):
         nullable=False
     )
     order: Mapped["Order"] = relationship(
-    back_populates="delivery_assignment"
+    back_populates="delivery_assignments"
 )
     delivery_agent: Mapped["Customer"] = relationship(
     foreign_keys=[delivery_agent_id],
     back_populates="delivery_assignments"
 )
+
     assigned_by_admin: Mapped["Customer"] = relationship(
     foreign_keys=[assigned_by],
     back_populates="assigned_delivery_assignments"
