@@ -14,6 +14,7 @@ from app.schemas.delivery_assignment import (
 )
 from app.services.delivery_assignment import (
     assign_delivery,
+    cancel_delivery_assignment,
     list_my_deliveries,
     update_delivery_status,
 )
@@ -79,4 +80,17 @@ def update_delivery_status_route(
         order_id=order_id,
         delivery_agent_id=current_delivery_agent.id,
         new_status=data.status,
+    )
+@router.patch(
+    "/{order_id}/cancel-delivery",
+    response_model=DeliveryAssignmentResponse,
+)
+def cancel_delivery(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Customer = Depends(require_admin),
+):
+    return cancel_delivery_assignment(
+        db=db,
+        order_id=order_id,
     )
