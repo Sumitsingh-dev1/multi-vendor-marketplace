@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum as SQLEnum,
 )
+from sqlalchemy import Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -72,3 +73,15 @@ class DeliveryAssignment(Base):
     foreign_keys=[assigned_by],
     back_populates="assigned_delivery_assignments"
 )
+    __table_args__ = (
+        Index(
+            "uq_active_delivery_assignment_order",
+            "order_id",
+            unique=True,
+            postgresql_where=text(
+                "(status <> ALL (ARRAY['CANCELLED'::deliveryassignmentstatus, "
+                "'DELIVERED'::deliveryassignmentstatus]))"
+            ),
+        ),
+    )
+    

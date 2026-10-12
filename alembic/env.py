@@ -23,6 +23,7 @@ from app.models.delivery_assignment import (
 )
 from app.models.password_reset_token import PasswordResetToken
 from app.core.config import settings
+from app.models.product_image import ProductImage
 
 
 # this is the Alembic Config object, which provides

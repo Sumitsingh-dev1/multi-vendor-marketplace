@@ -26,10 +26,26 @@ from app.api.routes.delivery_assignment import (
 from app.api.routes.password_reset import router as password_reset_router
 
 from datetime import datetime, timezone
+
+from pathlib import Path
+
+from fastapi.staticfiles import StaticFiles
 app = FastAPI(
     title="Multi-Vendor Marketplace API",
     version="1.0.0"
 )
+UPLOADS_DIR = Path("uploads")
+UPLOADS_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads",
+)
+
 
 
 # =========================================================

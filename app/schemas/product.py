@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProductCreate(BaseModel):
@@ -25,6 +25,16 @@ class SellerListingCreate(BaseModel):
     sku: str
 
 
+class ProductImageResponse(BaseModel):
+    id: int
+    product_id: int
+    image_url: str
+    is_primary: bool
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductListingResponse(BaseModel):
     product_id: int
     name: str
@@ -34,6 +44,9 @@ class ProductListingResponse(BaseModel):
     price: float
     stock: int
     sku: str
+    images: list[ProductImageResponse] = Field(
+        default_factory=list
+    )
 
 
 class ProductListResponse(BaseModel):

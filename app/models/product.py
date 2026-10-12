@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from app.models.category import Category
     from app.models.seller_product import SellerProduct
 
+    from app.models.product_image import ProductImage
+
 
 class Product(Base):
     __tablename__ = "products"
@@ -38,4 +40,9 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship(
         back_populates="products"
+    )
+    images: Mapped[list["ProductImage"]] = relationship(
+    back_populates="product",
+    cascade="all, delete-orphan",
+    order_by="ProductImage.sort_order"
     )

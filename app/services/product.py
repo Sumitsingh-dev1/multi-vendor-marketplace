@@ -5,7 +5,7 @@ from app.models.category import Category
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.seller_product import SellerProduct
-
+from sqlalchemy.orm import selectinload
 
 def create_product_listing(
     db: Session,
@@ -61,16 +61,20 @@ def get_products(
     offset: int = 0,
 ):
     statement = (
-        select(Product, SellerProduct)
-        .join(
-            SellerProduct,
-            SellerProduct.product_id == Product.id,
-        )
-        .where(
-            SellerProduct.is_active.is_(True),
-            SellerProduct.stock > 0,
-        )
+    select(Product, SellerProduct)
+    .options(
+        selectinload(Product.images)
     )
+    .join(
+        SellerProduct,
+        SellerProduct.product_id == Product.id,
+    )
+    .where(
+        SellerProduct.is_active.is_(True),
+        SellerProduct.stock > 0,
+    )
+)
+  
 
     if category_id is not None:
         statement = statement.where(
