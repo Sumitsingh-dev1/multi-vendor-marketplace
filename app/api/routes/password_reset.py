@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+from app.dependencies import get_async_db
 from app.schemas.password_reset import (
     ForgotPasswordRequest,
     ResetPasswordRequest
@@ -19,11 +19,11 @@ router = APIRouter(
 
 
 @router.post("/forgot-password")
-def forgot_password(
+async def forgot_password(
     data: ForgotPasswordRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    create_password_reset_otp(
+    await create_password_reset_otp(
         db=db,
         email=data.email
     )
@@ -37,11 +37,11 @@ def forgot_password(
 
 
 @router.post("/reset-password")
-def reset_password_endpoint(
+async def reset_password_endpoint(
     data: ResetPasswordRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    return reset_password(
+    return await reset_password(
         db=db,
         email=data.email,
         otp=data.otp,

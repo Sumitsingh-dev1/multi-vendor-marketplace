@@ -1,10 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SellerProductCreate(BaseModel):
     product_id: int
-    price: float
-    stock: int
+    price: float = Field(ge=0)
+    stock: int = Field(ge=0)
     sku: str
 
 
@@ -21,8 +21,8 @@ class SellerProductResponse(BaseModel):
 
 
 class SellerProductUpdate(BaseModel):
-    price: float | None = None
-    stock: int | None = None
+    price: float | None = Field(default=None, ge=0)
+    stock: int | None = Field(default=None, ge=0)
     sku: str | None = None
     is_active: bool | None = None
 

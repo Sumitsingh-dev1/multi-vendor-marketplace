@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import (
     get_current_customer,
-    get_db,
+    get_async_db,
     require_seller,
 )
 from app.models.customer import Customer
 from app.models.delivery_assignment import DeliveryAssignment
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.payment import Payment
 from app.models.product import Product
 from app.models.seller_product import SellerProduct
 from app.schemas.order import (
@@ -41,20 +42,26 @@ router = APIRouter(
     "/",
     response_model=OrderResponse,
 )
-def create_order_from_cart(
+async def create_order_from_cart(
     data: CheckoutRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    order = create_order_from_cart_service(
+    order = await create_order_from_cart_service(
         db=db,
         data=data,
         customer=customer,
+        idempotency_key=idempotency_key,
     )
 
+    payment = (await db.execute(select(Payment).where(Payment.order_id == order.id))).scalars().first()
     return OrderResponse(
         order_id=order.id,
         status=order.status.value,
+        payment_method=payment.payment_method if payment else None,
+        payment_status=payment.status if payment else None,
+        amount_due_paise=payment.amount_paise if payment else None,
     )
 
 
@@ -62,20 +69,26 @@ def create_order_from_cart(
     "/buy-now",
     response_model=OrderResponse,
 )
-def buy_now(
+async def buy_now(
     data: BuyNowRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    order = buy_now_service(
+    order = await buy_now_service(
         db=db,
         data=data,
         customer=customer,
+        idempotency_key=idempotency_key,
     )
 
+    payment = (await db.execute(select(Payment).where(Payment.order_id == order.id))).scalars().first()
     return OrderResponse(
         order_id=order.id,
         status=order.status.value,
+        payment_method=payment.payment_method if payment else None,
+        payment_status=payment.status if payment else None,
+        amount_due_paise=payment.amount_paise if payment else None,
     )
 
 
@@ -83,9 +96,9 @@ def buy_now(
     "/",
     response_model=list[OrderListItem],
 )
-def get_my_orders(
+async def get_my_orders(
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = (
         select(Order)
@@ -97,7 +110,7 @@ def get_my_orders(
         )
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
     orders = result.scalars().all()
 
     responses = []
@@ -117,9 +130,9 @@ def get_my_orders(
     "/seller",
     response_model=list[SellerOrderItemResponse],
 )
-def get_seller_orders(
+async def get_seller_orders(
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = (
         select(
@@ -148,7 +161,7 @@ def get_seller_orders(
         )
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
     rows = result.all()
 
     responses = []
@@ -179,17 +192,18 @@ def get_seller_orders(
     "/{order_id}",
     response_model=OrderDetailResponse,
 )
-def get_order(
+async def get_order(
     order_id: int,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    order = db.execute(
+    result = await db.execute(
         select(Order).where(
             Order.id == order_id,
             Order.customer_id == customer.id,
         )
-    ).scalar_one_or_none()
+    )
+    order = result.scalar_one_or_none()
 
     if order is None:
         raise HTTPException(
@@ -197,7 +211,7 @@ def get_order(
             detail="Order not found",
         )
 
-    latest_assignment = db.execute(
+    result = await db.execute(
         select(DeliveryAssignment)
         .where(
             DeliveryAssignment.order_id == order.id
@@ -205,7 +219,11 @@ def get_order(
         .order_by(
             DeliveryAssignment.assigned_at.desc()
         )
-    ).scalars().first()
+    )
+    latest_assignment = result.scalars().first()
+    payment = (await db.execute(
+        select(Payment).where(Payment.order_id == order.id)
+    )).scalars().first()
 
     statement = (
         select(
@@ -226,7 +244,7 @@ def get_order(
         )
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
     rows = result.all()
 
     items = []
@@ -252,6 +270,11 @@ def get_order(
             if latest_assignment is not None
             else None
         ),
+        payment_method=payment.payment_method if payment else None,
+        payment_status=payment.status if payment else None,
+        amount_due_paise=payment.amount_paise if payment else None,
+        amount_collected_paise=payment.amount_collected_paise if payment else None,
+        collected_at=payment.collected_at if payment else None,
         delivery_address_line=order.delivery_address_line,
         delivery_city=order.delivery_city,
         delivery_state=order.delivery_state,
@@ -265,12 +288,12 @@ def get_order(
 @router.patch(
     "/{order_id}/cancel",
 )
-def cancel_order(
+async def cancel_order(
     order_id: int,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    cancel_order_service(
+    await cancel_order_service(
         db=db,
         order_id=order_id,
         customer_id=customer.id,
@@ -284,13 +307,13 @@ def cancel_order(
 @router.patch(
     "/items/{order_item_id}/status",
 )
-def update_order_item_status(
+async def update_order_item_status(
     order_item_id: int,
     data: OrderItemStatusUpdate,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    order_item = update_order_item_status_service(
+    order_item = await update_order_item_status_service(
         db=db,
         order_item_id=order_item_id,
         new_status=data.status,

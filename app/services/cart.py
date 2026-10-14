@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
@@ -8,17 +8,18 @@ from app.models.product import Product
 from app.models.seller_product import SellerProduct
 
 
-def add_item_to_cart(
-    db: Session,
+async def add_item_to_cart(
+    db: AsyncSession,
     customer_id: int,
     seller_product_id: int,
     quantity: int,
 ):
-    seller_product = db.execute(
+    result = await db.execute(
         select(SellerProduct).where(
             SellerProduct.id == seller_product_id
         )
-    ).scalar_one_or_none()
+    )
+    seller_product = result.scalar_one_or_none()
 
     if seller_product is None:
         raise HTTPException(
@@ -38,25 +39,27 @@ def add_item_to_cart(
             detail="Not enough stock",
         )
 
-    cart = db.execute(
+    result = await db.execute(
         select(Cart).where(
             Cart.customer_id == customer_id
         )
-    ).scalar_one_or_none()
+    )
+    cart = result.scalar_one_or_none()
 
     if cart is None:
         cart = Cart(
             customer_id=customer_id
         )
         db.add(cart)
-        db.flush()
+        await db.flush()
 
-    cart_item = db.execute(
+    result = await db.execute(
         select(CartItem).where(
             CartItem.cart_id == cart.id,
             CartItem.seller_product_id == seller_product_id,
         )
-    ).scalar_one_or_none()
+    )
+    cart_item = result.scalar_one_or_none()
 
     if cart_item is not None:
         new_quantity = (
@@ -80,20 +83,21 @@ def add_item_to_cart(
 
         db.add(cart_item)
 
-    db.commit()
+    await db.commit()
 
     return cart_item
 
 
-def get_customer_cart(
-    db: Session,
+async def get_customer_cart(
+    db: AsyncSession,
     customer_id: int,
 ):
-    cart = db.execute(
+    result = await db.execute(
         select(Cart).where(
             Cart.customer_id == customer_id
         )
-    ).scalar_one_or_none()
+    )
+    cart = result.scalar_one_or_none()
 
     if cart is None:
         return None, []
@@ -113,25 +117,27 @@ def get_customer_cart(
         )
     )
 
-    rows = db.execute(statement).all()
+    result = await db.execute(statement)
+    rows = result.all()
 
     return cart.id, rows
 
 
-def update_cart_item(
-    db: Session,
+async def update_cart_item(
+    db: AsyncSession,
     customer_id: int,
     cart_item_id: int,
     quantity: int,
 ):
-    cart_item = db.execute(
+    result = await db.execute(
         select(CartItem)
         .join(Cart)
         .where(
             CartItem.id == cart_item_id,
             Cart.customer_id == customer_id,
         )
-    ).scalar_one_or_none()
+    )
+    cart_item = result.scalar_one_or_none()
 
     if cart_item is None:
         raise HTTPException(
@@ -139,11 +145,12 @@ def update_cart_item(
             detail="Cart item not found",
         )
 
-    seller_product = db.execute(
+    result = await db.execute(
         select(SellerProduct).where(
             SellerProduct.id == cart_item.seller_product_id
         )
-    ).scalar_one_or_none()
+    )
+    seller_product = result.scalar_one_or_none()
 
     if seller_product is None:
         raise HTTPException(
@@ -165,25 +172,26 @@ def update_cart_item(
 
     cart_item.quantity = quantity
 
-    db.commit()
-    db.refresh(cart_item)
+    await db.commit()
+    await db.refresh(cart_item)
 
     return cart_item
 
 
-def delete_cart_item(
-    db: Session,
+async def delete_cart_item(
+    db: AsyncSession,
     customer_id: int,
     cart_item_id: int,
 ):
-    cart_item = db.execute(
+    result = await db.execute(
         select(CartItem)
         .join(Cart)
         .where(
             CartItem.id == cart_item_id,
             Cart.customer_id == customer_id,
         )
-    ).scalar_one_or_none()
+    )
+    cart_item = result.scalar_one_or_none()
 
     if cart_item is None:
         raise HTTPException(
@@ -191,5 +199,5 @@ def delete_cart_item(
             detail="Cart item not found",
         )
 
-    db.delete(cart_item)
-    db.commit()
+    await db.delete(cart_item)
+    await db.commit()

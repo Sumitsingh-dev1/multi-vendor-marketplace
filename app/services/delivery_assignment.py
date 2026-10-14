@@ -1,5 +1,6 @@
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.customer import Customer, UserRole
 from app.models.delivery_assignment import (
@@ -8,17 +9,20 @@ from app.models.delivery_assignment import (
 )
 from app.models.order import Order, OrderItemStatus, OrderStatus
 from app.models.order_item import OrderItem
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from app.services.notification import notify
 
 
-def assign_delivery(
-    db: Session,
+async def assign_delivery(
+    db: AsyncSession,
     order_id: int,
     delivery_agent_id: int,
     admin_id: int,
 ):
-    order = db.query(Order).filter(
-        Order.id == order_id
-    ).first()
+    result = await db.execute(
+        select(Order).where(Order.id == order_id).with_for_update()
+    )
+    order = result.scalar_one_or_none()
 
     if order is None:
         raise HTTPException(
@@ -26,18 +30,19 @@ def assign_delivery(
             detail="Order not found",
         )
 
-    active_assignment = db.query(
-        DeliveryAssignment
-    ).filter(
-        DeliveryAssignment.order_id == order_id,
-        DeliveryAssignment.status.in_(
+    result = await db.execute(
+        select(DeliveryAssignment).where(
+            DeliveryAssignment.order_id == order_id,
+            DeliveryAssignment.status.in_(
             {
                 DeliveryAssignmentStatus.ASSIGNED,
                 DeliveryAssignmentStatus.PICKED_UP,
                 DeliveryAssignmentStatus.OUT_FOR_DELIVERY,
             }
-        ),
-    ).first()
+            ),
+        ).with_for_update()
+    )
+    active_assignment = result.scalar_one_or_none()
 
     if active_assignment is not None:
         raise HTTPException(
@@ -45,13 +50,14 @@ def assign_delivery(
             detail="Order already has an active delivery assignment",
         )
 
-    delivered_assignment = db.query(
-        DeliveryAssignment
-    ).filter(
-        DeliveryAssignment.order_id == order_id,
-        DeliveryAssignment.status
-        == DeliveryAssignmentStatus.DELIVERED,
-    ).first()
+    result = await db.execute(
+        select(DeliveryAssignment).where(
+            DeliveryAssignment.order_id == order_id,
+            DeliveryAssignment.status
+            == DeliveryAssignmentStatus.DELIVERED,
+        )
+    )
+    delivered_assignment = result.scalar_one_or_none()
 
     if delivered_assignment is not None:
         raise HTTPException(
@@ -59,9 +65,10 @@ def assign_delivery(
             detail="Order has already been delivered",
         )
 
-    order_items = db.query(OrderItem).filter(
-        OrderItem.order_id == order_id
-    ).all()
+    result = await db.execute(
+        select(OrderItem).where(OrderItem.order_id == order_id).with_for_update()
+    )
+    order_items = result.scalars().all()
 
     if not order_items:
         raise HTTPException(
@@ -90,10 +97,22 @@ def assign_delivery(
             detail="Order is not ready for delivery assignment",
         )
 
-    delivery_agent = db.query(Customer).filter(
-        Customer.id == delivery_agent_id,
-        Customer.role == UserRole.DELIVERY_AGENT,
-    ).first()
+    payment = (await db.execute(
+        select(Payment).where(Payment.order_id == order_id).with_for_update()
+    )).scalar_one_or_none()
+    if payment is None or payment.payment_method is None:
+        raise HTTPException(status_code=409, detail="Order payment method is not eligible for delivery")
+    if payment.payment_method == PaymentMethod.RAZORPAY and payment.status != PaymentStatus.CAPTURED:
+        raise HTTPException(status_code=409, detail="Online payment must be captured before delivery assignment")
+
+    result = await db.execute(
+        select(Customer).where(
+            Customer.id == delivery_agent_id,
+            Customer.role == UserRole.DELIVERY_AGENT,
+            Customer.is_active.is_(True),
+        )
+    )
+    delivery_agent = result.scalar_one_or_none()
 
     if delivery_agent is None:
         raise HTTPException(
@@ -109,41 +128,56 @@ def assign_delivery(
 
     try:
         db.add(assignment)
-        db.commit()
-        db.refresh(assignment)
+        await db.flush()
+        await notify(db, delivery_agent_id, "delivery_assigned", "Delivery assigned", "A delivery has been assigned to you.", "order", order_id, f"delivery:{assignment.id}:assigned:agent")
+        await notify(db, order.customer_id, "delivery_assigned", "Delivery assigned", "A delivery agent has been assigned to your order.", "order", order_id, f"delivery:{assignment.id}:assigned:customer")
+        await db.commit()
+        await db.refresh(assignment)
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise
 
     return assignment
 
 
-def list_my_deliveries(
-    db: Session,
+async def list_my_deliveries(
+    db: AsyncSession,
     delivery_agent_id: int,
 ):
-    return db.query(DeliveryAssignment).filter(
-        DeliveryAssignment.delivery_agent_id == delivery_agent_id
-    ).all()
+    result = await db.execute(
+        select(DeliveryAssignment).where(
+            DeliveryAssignment.delivery_agent_id == delivery_agent_id
+        ).with_for_update()
+    )
+    return result.scalars().all()
 
 
-def update_delivery_status(
-    db: Session,
+async def update_delivery_status(
+    db: AsyncSession,
     order_id: int,
     delivery_agent_id: int,
     new_status: DeliveryAssignmentStatus,
 ):
-    assignment = db.query(DeliveryAssignment).filter(
-        DeliveryAssignment.order_id == order_id,
-        DeliveryAssignment.delivery_agent_id == delivery_agent_id,
-        DeliveryAssignment.status.in_(
+    # Lock order, assignment, then payment in the same order as COD collection.
+    order = (await db.execute(
+        select(Order).where(Order.id == order_id).with_for_update()
+    )).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    result = await db.execute(
+        select(DeliveryAssignment).where(
+            DeliveryAssignment.order_id == order_id,
+            DeliveryAssignment.delivery_agent_id == delivery_agent_id,
+            DeliveryAssignment.status.in_(
             {
                 DeliveryAssignmentStatus.ASSIGNED,
                 DeliveryAssignmentStatus.PICKED_UP,
                 DeliveryAssignmentStatus.OUT_FOR_DELIVERY,
             }
-        ),
-    ).first()
+            ),
+        ).with_for_update()
+    )
+    assignment = result.scalar_one_or_none()
 
     if assignment is None:
         raise HTTPException(
@@ -178,43 +212,64 @@ def update_delivery_status(
 
     assignment.status = new_status
 
+    if new_status == DeliveryAssignmentStatus.OUT_FOR_DELIVERY:
+        await notify(db, order.customer_id, "out_for_delivery", "Order out for delivery", "Your order is out for delivery.", "order", order_id, f"delivery:{assignment.id}:out_for_delivery:customer")
+
     if new_status == DeliveryAssignmentStatus.DELIVERED:
-        order = db.query(Order).filter(
-            Order.id == order_id
-        ).first()
+        payment = (await db.execute(
+            select(Payment).where(Payment.order_id == order_id).with_for_update()
+        )).scalar_one_or_none()
+        if payment is None:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail="Order has no payment record")
+        if payment.payment_method is None:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail="Order payment method is not eligible for delivery")
+        if payment.payment_method == PaymentMethod.COD and payment.status != PaymentStatus.COLLECTED:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail="COD payment must be collected before delivery completion")
+        if payment.payment_method == PaymentMethod.RAZORPAY and payment.status != PaymentStatus.CAPTURED:
+            await db.rollback()
+            raise HTTPException(status_code=409, detail="Online payment must be captured before delivery completion")
 
-        if order is None:
-            db.rollback()
-
-            raise HTTPException(
-                status_code=404,
-                detail="Order not found",
-            )
-
+        items = (await db.execute(
+            select(OrderItem).where(OrderItem.order_id == order_id).with_for_update()
+        )).scalars().all()
+        active_items = [item for item in items if item.status != OrderItemStatus.CANCELLED]
+        if not active_items or not all(item.status == OrderItemStatus.SHIPPED for item in active_items):
+            await db.rollback()
+            raise HTTPException(status_code=400, detail="Order items are not eligible for delivery completion")
+        for item in active_items:
+            item.status = OrderItemStatus.DELIVERED
         order.status = OrderStatus.DELIVERED
+        await notify(db, order.customer_id, "order_delivered", "Order delivered", "Your order has been delivered.", "order", order_id, f"delivery:{assignment.id}:delivered:customer")
 
-    db.commit()
-    db.refresh(assignment)
+    await db.commit()
+    await db.refresh(assignment)
 
     return assignment
 
 
-def cancel_delivery_assignment(
-    db: Session,
+async def cancel_delivery_assignment(
+    db: AsyncSession,
     order_id: int,
 ):
-    assignment = db.query(
-        DeliveryAssignment
-    ).filter(
-        DeliveryAssignment.order_id == order_id,
-        DeliveryAssignment.status.in_(
+    # Share the order lock used by customer cancellation so those operations
+    # cannot produce contradictory order and delivery states.
+    await db.execute(select(Order).where(Order.id == order_id).with_for_update())
+    result = await db.execute(
+        select(DeliveryAssignment).where(
+            DeliveryAssignment.order_id == order_id,
+            DeliveryAssignment.status.in_(
             {
                 DeliveryAssignmentStatus.ASSIGNED,
                 DeliveryAssignmentStatus.PICKED_UP,
                 DeliveryAssignmentStatus.OUT_FOR_DELIVERY,
             }
-        ),
-    ).first()
+            ),
+        ).with_for_update()
+    )
+    assignment = result.scalar_one_or_none()
 
     if assignment is None:
         raise HTTPException(
@@ -224,7 +279,7 @@ def cancel_delivery_assignment(
 
     assignment.status = DeliveryAssignmentStatus.CANCELLED
 
-    db.commit()
-    db.refresh(assignment)
+    await db.commit()
+    await db.refresh(assignment)
 
     return assignment

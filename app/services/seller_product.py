@@ -1,12 +1,13 @@
+from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
 from app.models.seller_product import SellerProduct
 
 
-def list_seller_products(
-    db: Session,
+async def list_seller_products(
+    db: AsyncSession,
     seller_id: int,
     category_id: int | None = None,
     product_id: int | None = None,
@@ -68,15 +69,16 @@ def list_seller_products(
         limit + 1
     ).offset(offset)
 
-    rows = db.execute(statement).all()
+    result = await db.execute(statement)
+    rows = result.all()
 
     has_next = len(rows) > limit
 
     return rows[:limit], has_next
 
 
-def get_seller_product(
-    db: Session,
+async def get_seller_product(
+    db: AsyncSession,
     seller_id: int,
     seller_product_id: int,
 ):
@@ -92,11 +94,12 @@ def get_seller_product(
         )
     )
 
-    return db.execute(statement).first()
+    result = await db.execute(statement)
+    return result.first()
 
 
-def update_seller_product(
-    db: Session,
+async def update_seller_product(
+    db: AsyncSession,
     seller_id: int,
     seller_product_id: int,
     price: float | None = None,
@@ -107,19 +110,24 @@ def update_seller_product(
     statement = select(SellerProduct).where(
         SellerProduct.id == seller_product_id,
         SellerProduct.seller_id == seller_id,
-    )
+    ).with_for_update()
 
-    seller_product = db.execute(
+    result = await db.execute(
         statement
-    ).scalar_one_or_none()
+    )
+    seller_product = result.scalar_one_or_none()
 
     if seller_product is None:
         return None
 
     if price is not None:
+        if price < 0:
+            raise HTTPException(status_code=422, detail="Price cannot be negative")
         seller_product.price = price
 
     if stock is not None:
+        if stock < 0:
+            raise HTTPException(status_code=422, detail="Stock cannot be negative")
         seller_product.stock = stock
 
     if sku is not None:
@@ -128,7 +136,7 @@ def update_seller_product(
     if is_active is not None:
         seller_product.is_active = is_active
 
-    db.commit()
-    db.refresh(seller_product)
+    await db.commit()
+    await db.refresh(seller_product)
 
     return seller_product

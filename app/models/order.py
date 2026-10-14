@@ -9,7 +9,8 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     Enum as SQLEnum,
-    Float
+    Float,
+    UniqueConstraint,
 )
 
 from sqlalchemy.orm import Mapped, mapped_column,relationship
@@ -34,6 +35,9 @@ class OrderItemStatus(str, PyEnum):
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        UniqueConstraint("customer_id", "idempotency_operation", "idempotency_key", name="uq_orders_customer_operation_idempotency_key"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -41,6 +45,9 @@ class Order(Base):
         ForeignKey("customers.id"),
         nullable=False
     )
+
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    idempotency_operation: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     delivery_address_line: Mapped[str] = mapped_column(
         String(255),
@@ -86,7 +93,4 @@ class Order(Base):
         list["DeliveryAssignment"]
         ] = relationship(
          back_populates="order"
-)
-    
-    
-    
+    )

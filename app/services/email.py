@@ -1,13 +1,15 @@
 import smtplib
 from email.mime.text import MIMEText
 
+from fastapi.concurrency import run_in_threadpool
+
 from app.core.config import settings
 
 
-def send_password_reset_otp(
+def _send_password_reset_otp_sync(
     to_email: str,
     otp: str
-):
+) -> None:
     subject = "Password Reset OTP"
 
     body = f"""
@@ -32,7 +34,8 @@ Multi-Vendor Marketplace
 
     with smtplib.SMTP(
         settings.SMTP_HOST,
-        settings.SMTP_PORT
+        settings.SMTP_PORT,
+        timeout=settings.SMTP_TIMEOUT_SECONDS,
     ) as server:
 
         server.starttls()
@@ -47,3 +50,14 @@ Multi-Vendor Marketplace
             to_email,
             message.as_string()
         )
+
+
+async def send_password_reset_otp(
+    to_email: str,
+    otp: str
+) -> None:
+    await run_in_threadpool(
+        _send_password_reset_otp_sync,
+        to_email,
+        otp,
+    )

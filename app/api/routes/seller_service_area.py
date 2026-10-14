@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_seller
+from app.dependencies import get_async_db, require_seller
 from app.models.customer import Customer
 from app.models.seller_service_area import SellerServiceArea
 from app.schemas.seller_service_area import (
@@ -26,18 +26,19 @@ router = APIRouter(
     "/",
     response_model=SellerServiceAreaResponse
 )
-def create_service_area(
+async def create_service_area(
     data: SellerServiceAreaCreate,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
     # Check whether this seller already has this postal code
-    existing = db.execute(
+    result = await db.execute(
         select(SellerServiceArea).where(
             SellerServiceArea.seller_id == seller.id,
             SellerServiceArea.postal_code == data.postal_code
         )
-    ).scalar_one_or_none()
+    )
+    existing = result.scalar_one_or_none()
 
     if existing is not None:
         raise HTTPException(
@@ -51,8 +52,8 @@ def create_service_area(
     )
 
     db.add(service_area)
-    db.commit()
-    db.refresh(service_area)
+    await db.commit()
+    await db.refresh(service_area)
 
     return service_area
 
@@ -66,9 +67,9 @@ def create_service_area(
     "/",
     response_model=list[SellerServiceAreaResponse]
 )
-def get_my_service_areas(
+async def get_my_service_areas(
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = (
         select(SellerServiceArea)
@@ -77,7 +78,7 @@ def get_my_service_areas(
         )
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
 
     return result.scalars().all()
 
@@ -90,17 +91,18 @@ def get_my_service_areas(
 @router.delete(
     "/{service_area_id}"
 )
-def delete_service_area(
+async def delete_service_area(
     service_area_id: int,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    service_area = db.execute(
+    result = await db.execute(
         select(SellerServiceArea).where(
             SellerServiceArea.id == service_area_id,
             SellerServiceArea.seller_id == seller.id
         )
-    ).scalar_one_or_none()
+    )
+    service_area = result.scalar_one_or_none()
 
     if service_area is None:
         raise HTTPException(
@@ -108,8 +110,8 @@ def delete_service_area(
             detail="Service area not found"
         )
 
-    db.delete(service_area)
-    db.commit()
+    await db.delete(service_area)
+    await db.commit()
 
     return {
         "message": "Service area deleted successfully"

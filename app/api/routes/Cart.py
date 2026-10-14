@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_customer, get_db
+from app.dependencies import get_async_db, get_current_customer
 from app.models.customer import Customer
 from app.schemas.cart import (
     CartItemCreate,
@@ -24,13 +24,13 @@ router = APIRouter(
 
 
 @router.post("/items")
-def add_to_cart(
+async def add_to_cart(
     data: CartItemCreate,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        add_item_to_cart(
+        await add_item_to_cart(
             db=db,
             customer_id=customer.id,
             seller_product_id=data.seller_product_id,
@@ -45,11 +45,11 @@ def add_to_cart(
 
 
 @router.get("/", response_model=CartResponse)
-def get_cart(
+async def get_cart(
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    cart_id, cart_items = get_customer_cart(
+    cart_id, cart_items = await get_customer_cart(
         db=db,
         customer_id=customer.id,
     )
@@ -79,13 +79,13 @@ def get_cart(
 
 
 @router.patch("/items/{cart_item_id}")
-def update_cart_item_route(
+async def update_cart_item_route(
     cart_item_id: int,
     data: CartItemUpdate,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    update_cart_item(
+    await update_cart_item(
         db=db,
         customer_id=customer.id,
         cart_item_id=cart_item_id,
@@ -98,12 +98,12 @@ def update_cart_item_route(
 
 
 @router.delete("/items/{cart_item_id}")
-def delete_cart_item_route(
+async def delete_cart_item_route(
     cart_item_id: int,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    delete_cart_item(
+    await delete_cart_item(
         db=db,
         customer_id=customer.id,
         cart_item_id=cart_item_id,

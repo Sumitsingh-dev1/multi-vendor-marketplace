@@ -47,6 +47,8 @@ class ProductListingResponse(BaseModel):
     images: list[ProductImageResponse] = Field(
         default_factory=list
     )
+    average_rating: float | None = None
+    review_count: int = 0
 
 
 class ProductListResponse(BaseModel):

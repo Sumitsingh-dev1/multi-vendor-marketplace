@@ -7,10 +7,12 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_seller
+from app.dependencies import get_async_db, require_seller
 from app.models.customer import Customer
+from app.models.review import Review
 from app.schemas.product import (
     ProductImageResponse,
     ProductListResponse,
@@ -37,13 +39,13 @@ router = APIRouter(
 @router.post(
     "/",
 )
-def create_product(
+async def create_product(
     data: SellerListingCreate,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
-        seller_product = create_product_listing(
+        seller_product = await create_product_listing(
             db=db,
             seller=seller,
             name=data.name,
@@ -65,11 +67,11 @@ def create_product(
         }
 
     except HTTPException:
-        db.rollback()
+        await db.rollback()
         raise
 
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail="Could not create product",
@@ -80,7 +82,7 @@ def create_product(
     "/",
     response_model=ProductListResponse,
 )
-def get_products_route(
+async def get_products_route(
     category_id: int | None = None,
     search: str | None = None,
     min_price: float | None = None,
@@ -95,9 +97,9 @@ def get_products_route(
         default=0,
         ge=0,
     ),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    rows, has_next = get_products(
+    rows, has_next = await get_products(
         db=db,
         category_id=category_id,
         search=search,
@@ -107,6 +109,15 @@ def get_products_route(
         limit=limit,
         offset=offset,
     )
+    product_ids = [product.id for product, _ in rows]
+    rating_rows = []
+    if product_ids:
+        rating_rows = (await db.execute(
+            select(Review.product_id, func.avg(Review.rating), func.count(Review.id))
+            .where(Review.product_id.in_(product_ids), Review.is_hidden.is_(False))
+            .group_by(Review.product_id)
+        )).all()
+    ratings = {product_id: (float(average), count) for product_id, average, count in rating_rows}
     items = [
     ProductListingResponse(
         product_id=product.id,
@@ -128,6 +139,8 @@ def get_products_route(
                 ),
             )
         ],
+        average_rating=ratings.get(product.id, (None, 0))[0],
+        review_count=ratings.get(product.id, (None, 0))[1],
     )
     for product, seller_product in rows
 ]
@@ -146,15 +159,15 @@ def get_products_route(
     response_model=ProductImageResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def upload_product_image_route(
+async def upload_product_image_route(
     product_id: int,
     image: UploadFile = File(...),
     is_primary: bool = False,
     sort_order: int = 0,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    return upload_product_image(
+    return await upload_product_image(
         db=db,
         product_id=product_id,
         seller=seller,
@@ -168,11 +181,11 @@ def upload_product_image_route(
     "/{product_id}/images",
     response_model=list[ProductImageResponse],
 )
-def get_product_images_route(
+async def get_product_images_route(
     product_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    return get_product_images(
+    return await get_product_images(
         db=db,
         product_id=product_id,
     )
@@ -181,13 +194,13 @@ def get_product_images_route(
 @router.delete(
     "/{product_id}/images/{image_id}",
 )
-def delete_product_image_route(
+async def delete_product_image_route(
     product_id: int,
     image_id: int,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    return delete_product_image(
+    return await delete_product_image(
         db=db,
         product_id=product_id,
         image_id=image_id,

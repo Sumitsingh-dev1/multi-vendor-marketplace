@@ -3,7 +3,8 @@ from app.database import Base
 
 from sqlalchemy import (
     String,
-    ForeignKey
+    ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -16,6 +17,9 @@ if TYPE_CHECKING:
 
 class SellerServiceArea(Base):
     __tablename__ = "seller_service_areas"
+    __table_args__ = (
+        UniqueConstraint("seller_id", "postal_code", name="uq_seller_service_areas_seller_postal_code"),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True

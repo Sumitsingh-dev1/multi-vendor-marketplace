@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import (
-    get_db,
+    get_async_db,
     require_admin,
     require_delivery_agent,
 )
@@ -31,13 +31,13 @@ router = APIRouter(
     response_model=DeliveryAssignmentResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def assign_delivery_to_order(
+async def assign_delivery_to_order(
     order_id: int,
     data: DeliveryAssignmentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_admin: Customer = Depends(require_admin),
 ):
-    assignment = assign_delivery(
+    assignment = await assign_delivery(
         db=db,
         order_id=order_id,
         delivery_agent_id=data.delivery_agent_id,
@@ -51,13 +51,13 @@ def assign_delivery_to_order(
     "/my-deliveries",
     response_model=list[DeliveryAssignmentResponse],
 )
-def get_my_deliveries(
-    db: Session = Depends(get_db),
+async def get_my_deliveries(
+    db: AsyncSession = Depends(get_async_db),
     current_delivery_agent: Customer = Depends(
         require_delivery_agent
     ),
 ):
-    return list_my_deliveries(
+    return await list_my_deliveries(
         db=db,
         delivery_agent_id=current_delivery_agent.id,
     )
@@ -67,15 +67,15 @@ def get_my_deliveries(
     "/{order_id}/delivery-status",
     response_model=DeliveryAssignmentResponse,
 )
-def update_delivery_status_route(
+async def update_delivery_status_route(
     order_id: int,
     data: DeliveryStatusUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_delivery_agent: Customer = Depends(
         require_delivery_agent
     ),
 ):
-    return update_delivery_status(
+    return await update_delivery_status(
         db=db,
         order_id=order_id,
         delivery_agent_id=current_delivery_agent.id,
@@ -85,12 +85,12 @@ def update_delivery_status_route(
     "/{order_id}/cancel-delivery",
     response_model=DeliveryAssignmentResponse,
 )
-def cancel_delivery(
+async def cancel_delivery(
     order_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_admin: Customer = Depends(require_admin),
 ):
-    return cancel_delivery_assignment(
+    return await cancel_delivery_assignment(
         db=db,
         order_id=order_id,
     )

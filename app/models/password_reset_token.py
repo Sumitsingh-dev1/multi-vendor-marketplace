@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     DateTime,
+    Integer,
 )
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,6 +40,12 @@ class PasswordResetToken(Base):
         Boolean,
         default=False,
         nullable=False
+    )
+
+    verification_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(

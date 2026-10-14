@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_seller
+from app.dependencies import get_async_db, require_seller
 from app.models.customer import Customer
 from app.schemas.seller_product import (
     MySellerProductListResponse,
@@ -25,7 +25,7 @@ router = APIRouter(
     "/",
     response_model=MySellerProductListResponse,
 )
-def get_my_products(
+async def get_my_products(
     seller: Customer = Depends(require_seller),
     category_id: int | None = None,
     product_id: int | None = None,
@@ -34,9 +34,9 @@ def get_my_products(
     sort: str = Query(default="newest"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    rows, has_next = list_seller_products(
+    rows, has_next = await list_seller_products(
         db=db,
         seller_id=seller.id,
         category_id=category_id,
@@ -70,13 +70,13 @@ def get_my_products(
 
 
 @router.patch("/{seller_product_id}")
-def update_my_seller_product(
+async def update_my_seller_product(
     seller_product_id: int,
     data: SellerProductUpdate,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    seller_product = update_seller_product(
+    seller_product = await update_seller_product(
         db=db,
         seller_id=seller.id,
         seller_product_id=seller_product_id,
@@ -101,12 +101,12 @@ def update_my_seller_product(
     "/{seller_product_id}",
     response_model=MySellerProductResponse,
 )
-def get_my_seller_product(
+async def get_my_seller_product(
     seller_product_id: int,
     seller: Customer = Depends(require_seller),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    result = get_seller_product(
+    result = await get_seller_product(
         db=db,
         seller_id=seller.id,
         seller_product_id=seller_product_id,

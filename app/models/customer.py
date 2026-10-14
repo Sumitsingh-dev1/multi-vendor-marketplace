@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.delivery_assignment import DeliveryAssignment
     from app.models.password_reset_token import PasswordResetToken
     from app.models.seller_product import SellerProduct
+    from app.models.seller_application import SellerApplication
 
 class UserRole(str, PyEnum):
     CUSTOMER = "customer"
@@ -101,4 +102,8 @@ class Customer(Base):
     password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
     back_populates="customer",
     cascade="all, delete-orphan"
+    )
+    seller_applications: Mapped[list["SellerApplication"]] = relationship(
+        foreign_keys="SellerApplication.customer_id",
+        back_populates="customer",
     )

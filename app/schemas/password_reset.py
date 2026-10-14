@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+from app.core.config import settings
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -7,5 +8,5 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    otp: str
-    new_password: str
+    otp: str = Field(pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=settings.PASSWORD_MIN_LENGTH)

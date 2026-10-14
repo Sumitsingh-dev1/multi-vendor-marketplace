@@ -1,14 +1,14 @@
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.category import Category
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.seller_product import SellerProduct
-from sqlalchemy.orm import selectinload
 
-def create_product_listing(
-    db: Session,
+async def create_product_listing(
+    db: AsyncSession,
     seller: Customer,
     name: str,
     description: str | None,
@@ -17,12 +17,13 @@ def create_product_listing(
     stock: int,
     sku: str,
 ):
-    category = db.execute(
+    result = await db.execute(
         select(Category).where(
             Category.id == category_id,
             Category.is_active.is_(True),
         )
-    ).scalar_one_or_none()
+    )
+    category = result.scalar_one_or_none()
 
     if category is None:
         return None
@@ -34,7 +35,7 @@ def create_product_listing(
     )
 
     db.add(product)
-    db.flush()
+    await db.flush()
 
     seller_product = SellerProduct(
         seller_id=seller.id,
@@ -45,13 +46,13 @@ def create_product_listing(
     )
 
     db.add(seller_product)
-    db.commit()
+    await db.commit()
 
     return seller_product
 
 
-def get_products(
-    db: Session,
+async def get_products(
+    db: AsyncSession,
     category_id: int | None = None,
     search: str | None = None,
     min_price: float | None = None,
@@ -111,7 +112,8 @@ def get_products(
 
     statement = statement.limit(limit + 1).offset(offset)
 
-    rows = db.execute(statement).all()
+    result = await db.execute(statement)
+    rows = result.unique().all()
 
     has_next = len(rows) > limit
 

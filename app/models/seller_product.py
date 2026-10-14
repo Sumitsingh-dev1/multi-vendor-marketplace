@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,11 @@ if TYPE_CHECKING:
 
 class SellerProduct(Base):
     __tablename__ = "seller_products"
+
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="ck_seller_products_stock_nonnegative"),
+        CheckConstraint("price >= 0", name="ck_seller_products_price_nonnegative"),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True

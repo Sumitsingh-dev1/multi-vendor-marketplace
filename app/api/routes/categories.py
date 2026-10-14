@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_admin
+from app.dependencies import get_async_db, require_admin
 from app.models.category import Category
 from app.models.customer import Customer
 from app.schemas.category import (
@@ -20,10 +20,10 @@ router = APIRouter(
 
 
 @router.post("/")
-def create_category(
+async def create_category(
     data: CategoryCreate,
     admin: Customer = Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     category = Category(
         name=data.name,
@@ -31,8 +31,8 @@ def create_category(
     )
 
     db.add(category)
-    db.commit()
-    db.refresh(category)
+    await db.commit()
+    await db.refresh(category)
 
     return {
         "message": "Category created successfully",
@@ -40,12 +40,12 @@ def create_category(
 
 
 @router.get("/", response_model=list[CategoryResponse])
-def get_categories(
-    db: Session = Depends(get_db),
+async def get_categories(
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = select(Category)
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
 
     return result.scalars().all()
 
@@ -54,13 +54,13 @@ def get_categories(
     "/admin",
     response_model=list[AdminCategoryResponse],
 )
-def get_all_categories_for_admin(
+async def get_all_categories_for_admin(
     admin: Customer = Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = select(Category)
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
 
     return result.scalars().all()
 
@@ -69,15 +69,15 @@ def get_all_categories_for_admin(
     "/{category_id}",
     response_model=CategoryResponse,
 )
-def get_category(
+async def get_category(
     category_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = select(Category).where(
         Category.id == category_id
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
 
     category = result.scalar_one_or_none()
 
@@ -91,19 +91,20 @@ def get_category(
 
 
 @router.patch("/{category_id}")
-def update_category(
+async def update_category(
     category_id: int,
     data: CategoryUpdate,
     admin: Customer = Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = select(Category).where(
         Category.id == category_id
     )
 
-    category = db.execute(
+    result = await db.execute(
         statement
-    ).scalar_one_or_none()
+    )
+    category = result.scalar_one_or_none()
 
     if category is None:
         raise HTTPException(
@@ -120,7 +121,7 @@ def update_category(
     if data.is_active is not None:
         category.is_active = data.is_active
 
-    db.commit()
+    await db.commit()
 
     return {
         "message": "Category updated successfully",

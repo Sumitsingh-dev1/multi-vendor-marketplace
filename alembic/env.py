@@ -24,6 +24,20 @@ from app.models.delivery_assignment import (
 from app.models.password_reset_token import PasswordResetToken
 from app.core.config import settings
 from app.models.product_image import ProductImage
+from app.models.payment import Payment, PaymentStatus
+from app.models.seller_application import SellerApplication, SellerApplicationStatus
+from app.models.review import Review
+from app.models.notification import Notification
+
+
+def make_sync_database_url(database_url: str) -> str:
+    if database_url.startswith("postgresql+asyncpg://"):
+        return database_url.replace(
+            "postgresql+asyncpg://",
+            "postgresql+psycopg://",
+            1,
+        )
+    return database_url
 
 
 # this is the Alembic Config object, which provides
@@ -31,7 +45,7 @@ from app.models.product_image import ProductImage
 config = context.config
 config.set_main_option(
     "sqlalchemy.url",
-    settings.DATABASE_URL.replace("%", "%%")
+    make_sync_database_url(settings.DATABASE_URL).replace("%", "%%")
 )
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

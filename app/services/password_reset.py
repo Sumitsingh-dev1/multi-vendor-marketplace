@@ -1,144 +1,69 @@
 from datetime import datetime, timedelta, timezone
 import secrets
-
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import hash_password, verify_password
 from app.models.customer import Customer
 from app.models.password_reset_token import PasswordResetToken
 from app.services.email import send_password_reset_otp
 
-def reset_password(
-    db: Session,
-    email: str,
-    otp: str,
-    new_password: str
-):
-    # 1. Find the customer
-    customer = db.query(Customer).filter(
-        Customer.email == email
-    ).first()
-
-    if not customer:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired OTP"
-        )
-
-    # 2. Get the newest unused reset token
-    reset_token = db.query(PasswordResetToken).filter(
-        PasswordResetToken.customer_id == customer.id,
-        PasswordResetToken.used == False
-    ).order_by(
-        PasswordResetToken.created_at.desc()
-    ).first()
-
-    if not reset_token:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired OTP"
-        )
-
-    # 3. Check expiry
-    if reset_token.expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired OTP"
-        )
-
-    # 4. Verify OTP
-    if not verify_password(
-        otp,
-        reset_token.token_hash
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired OTP"
-        )
-
-    # 5. Change password + invalidate OTP
-    try:
-        customer.password_hash = hash_password(new_password)
-
-        customer.password_changed_at = datetime.now(
-            timezone.utc
-        )
-
-        reset_token.used = True
-
-        db.commit()
-        db.refresh(customer)
-
-    except Exception:
-        db.rollback()
-        raise
-
-    return {
-        "message": "Password reset successfully"
-    }
-
-
-
 RESET_OTP_MINUTES = 15
+RESET_OTP_REQUEST_COOLDOWN_SECONDS = 60
+MAX_OTP_VERIFICATION_ATTEMPTS = 5
+INVALID_OTP_ERROR = "Invalid or expired OTP"
 
-
-def create_password_reset_otp(
-    db: Session,
-    email: str
-):
-    # Find customer by email
-    customer = db.query(Customer).filter(
-        Customer.email == email
-    ).first()
-
-    # Don't reveal whether the email exists
-    if not customer:
-        return None
-
-    # Invalidate previous unused OTPs
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.customer_id == customer.id,
-        PasswordResetToken.used == False
-    ).update(
-        {"used": True},
-        synchronize_session=False
-    )
-
-    # Generate 6-digit OTP
-    otp = f"{secrets.randbelow(1_000_000):06d}"
-
-    # Hash OTP before storing it
-    otp_hash = hash_password(otp)
-
-    # 15-minute expiry
-    expires_at = (
-        datetime.now(timezone.utc)
-        + timedelta(minutes=RESET_OTP_MINUTES)
-    )
-
-    reset_token = PasswordResetToken(
-        customer_id=customer.id,
-        token_hash=otp_hash,
-        expires_at=expires_at,
-        used=False
-    )
-
+async def reset_password(db: AsyncSession, email: str, otp: str, new_password: str):
+    result = await db.execute(select(Customer).where(Customer.email == email).with_for_update())
+    customer = result.scalar_one_or_none()
+    if customer is None:
+        raise HTTPException(status_code=400, detail=INVALID_OTP_ERROR)
+    result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.customer_id == customer.id, PasswordResetToken.used.is_(False)).order_by(PasswordResetToken.created_at.desc()).with_for_update())
+    token = result.scalars().first()
+    now = datetime.now(timezone.utc)
+    if token is None:
+        raise HTTPException(status_code=400, detail=INVALID_OTP_ERROR)
+    if token.expires_at <= now or token.verification_attempts >= MAX_OTP_VERIFICATION_ATTEMPTS:
+        token.used = True
+        await db.commit()
+        raise HTTPException(status_code=400, detail=INVALID_OTP_ERROR)
+    if not await run_in_threadpool(verify_password, otp, token.token_hash):
+        token.verification_attempts += 1
+        if token.verification_attempts >= MAX_OTP_VERIFICATION_ATTEMPTS:
+            token.used = True
+        await db.commit()
+        raise HTTPException(status_code=400, detail=INVALID_OTP_ERROR)
     try:
-        db.add(reset_token)
-        db.commit()
-        db.refresh(reset_token)
-
-        send_password_reset_otp(
-    customer.email,
-    otp
-)
-        
+        customer.password_hash = await run_in_threadpool(hash_password, new_password)
+        customer.password_changed_at = now
+        token.used = True
+        await db.commit()
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise
+    return {"message": "Password reset successfully"}
 
-    return {
-        "customer": customer,
-        "otp": otp
-    }
+async def create_password_reset_otp(db: AsyncSession, email: str):
+    # Account locking serializes requests, ensuring only one OTP can be valid.
+    result = await db.execute(select(Customer).where(Customer.email == email).with_for_update())
+    customer = result.scalar_one_or_none()
+    if customer is None or not customer.is_active:
+        return None
+    now = datetime.now(timezone.utc)
+    latest = await db.execute(select(PasswordResetToken).where(PasswordResetToken.customer_id == customer.id).order_by(PasswordResetToken.created_at.desc()).limit(1))
+    last_token = latest.scalar_one_or_none()
+    if last_token and (now - last_token.created_at).total_seconds() < RESET_OTP_REQUEST_COOLDOWN_SECONDS:
+        return None
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    token_hash = await run_in_threadpool(hash_password, otp)
+    await db.execute(update(PasswordResetToken).where(PasswordResetToken.customer_id == customer.id, PasswordResetToken.used.is_(False)).values(used=True))
+    db.add(PasswordResetToken(customer_id=customer.id, token_hash=token_hash, expires_at=now + timedelta(minutes=RESET_OTP_MINUTES), used=False))
+    try:
+        await db.flush()
+        # A delivery failure rolls back both the new token and invalidations.
+        await send_password_reset_otp(customer.email, otp)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+    return None

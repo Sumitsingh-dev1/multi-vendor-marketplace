@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_customer
+from app.dependencies import get_async_db, get_current_customer
 from app.models.customer import Customer
 from app.models.address import Address
 from app.schemas.address import (
@@ -27,10 +27,10 @@ router = APIRouter(
     "/",
     response_model=AddressResponse
 )
-def create_address(
+async def create_address(
     data: AddressCreate,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
     address = Address(
         customer_id=customer.id,
@@ -44,8 +44,8 @@ def create_address(
     )
 
     db.add(address)
-    db.commit()
-    db.refresh(address)
+    await db.commit()
+    await db.refresh(address)
 
     return address
 
@@ -59,9 +59,9 @@ def create_address(
     "/",
     response_model=list[AddressResponse]
 )
-def get_my_addresses(
+async def get_my_addresses(
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
     statement = (
         select(Address)
@@ -70,7 +70,7 @@ def get_my_addresses(
         )
     )
 
-    result = db.execute(statement)
+    result = await db.execute(statement)
 
     addresses = result.scalars().all()
 
@@ -86,17 +86,18 @@ def get_my_addresses(
     "/{address_id}",
     response_model=AddressResponse
 )
-def get_address(
+async def get_address(
     address_id: int,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    address = db.execute(
+    result = await db.execute(
         select(Address).where(
             Address.id == address_id,
             Address.customer_id == customer.id
         )
-    ).scalar_one_or_none()
+    )
+    address = result.scalar_one_or_none()
 
     if address is None:
         raise HTTPException(
@@ -116,18 +117,19 @@ def get_address(
     "/{address_id}",
     response_model=AddressResponse
 )
-def update_address(
+async def update_address(
     address_id: int,
     data: AddressUpdate,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    address = db.execute(
+    result = await db.execute(
         select(Address).where(
             Address.id == address_id,
             Address.customer_id == customer.id
         )
-    ).scalar_one_or_none()
+    )
+    address = result.scalar_one_or_none()
 
     if address is None:
         raise HTTPException(
@@ -156,8 +158,8 @@ def update_address(
     if data.postal_code is not None:
         address.postal_code = data.postal_code
 
-    db.commit()
-    db.refresh(address)
+    await db.commit()
+    await db.refresh(address)
 
     return address
 
@@ -170,17 +172,18 @@ def update_address(
 @router.delete(
     "/{address_id}"
 )
-def delete_address(
+async def delete_address(
     address_id: int,
     customer: Customer = Depends(get_current_customer),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
 ):
-    address = db.execute(
+    result = await db.execute(
         select(Address).where(
             Address.id == address_id,
             Address.customer_id == customer.id
         )
-    ).scalar_one_or_none()
+    )
+    address = result.scalar_one_or_none()
 
     if address is None:
         raise HTTPException(
@@ -188,8 +191,8 @@ def delete_address(
             detail="Address not found"
         )
 
-    db.delete(address)
-    db.commit()
+    await db.delete(address)
+    await db.commit()
 
     return {
         "message": "Address deleted successfully"

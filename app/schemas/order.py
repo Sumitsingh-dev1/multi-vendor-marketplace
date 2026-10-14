@@ -1,13 +1,19 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 from app.models.order import OrderStatus, OrderItemStatus
+from app.models.payment import PaymentMethod, PaymentStatus
 from app.models.delivery_assignment import DeliveryAssignmentStatus
 
 class OrderResponse(BaseModel):
     order_id: int
     status: str
+    payment_method: PaymentMethod | None = None
+    payment_status: PaymentStatus | None = None
+    amount_due_paise: int | None = None
 
 
 class CheckoutRequest(BaseModel):
+    payment_method: PaymentMethod = PaymentMethod.COD
     address_id: int | None = None
 
     latitude: float | None = None
@@ -30,6 +36,7 @@ class CheckoutRequest(BaseModel):
 class BuyNowRequest(BaseModel):
     seller_product_id: int
     quantity: int = Field(gt=0)
+    payment_method: PaymentMethod = PaymentMethod.COD
 
     address_id: int | None = None
 
@@ -78,6 +85,11 @@ class OrderDetailResponse(BaseModel):
     order_id: int
     status: str
     delivery_status: DeliveryAssignmentStatus | None = None
+    payment_method: PaymentMethod | None = None
+    payment_status: PaymentStatus | None = None
+    amount_due_paise: int | None = None
+    amount_collected_paise: int | None = None
+    collected_at: datetime | None = None
 
     delivery_address_line: str
     delivery_city: str
