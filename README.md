@@ -50,6 +50,14 @@ Customers may create one review per delivered order item at `POST /products/{pro
 
 Authenticated users read only their own notifications through `GET /notifications/me`, with `unread_only`, pagination, `GET /notifications/me/unread-count`, `PATCH /notifications/{id}/read`, and `PATCH /notifications/me/read-all`. Notifications cover supported order, seller-item, delivery, and COD-collection events. They are database-backed only: email, SMS, and push delivery are not included. Migration `a9c3d7e1f640` follows `f2b5e8a7c430`.
 
+## Support tickets
+
+Active customers, sellers, and delivery agents create tickets with an initial message at `POST /support/tickets`; an optional order link is validated server-side against the caller's customer order, seller listing in the order, or delivery assignment. Ticket owners list their own tickets at `GET /support/tickets/me`, view a ticket at `GET /support/tickets/{id}`, read paginated chronological messages at `GET /support/tickets/{id}/messages`, reply at `POST /support/tickets/{id}/messages`, and reopen their own resolved or closed ticket at `POST /support/tickets/{id}/reopen`.
+
+Tickets begin `open`. Administrators use `GET /admin/support/tickets` (pagination plus status, priority, category, assignee, and creator filters) and `PATCH /admin/support/tickets/{id}` to assign active administrators, set priority, and transition tickets: `open` to `in_progress`, `resolved`, or `closed`; `in_progress`/`waiting_for_user` among their permitted progression to `waiting_for_user`, `resolved`, or `closed`; and `resolved` to `closed`. Owners may reopen `resolved` or `closed` tickets to `open`. Closed tickets cannot receive replies until reopened. Ticket access is limited to its creator and administrators.
+
+Ticket creation, its first message, replies, state changes, and their applicable database-backed in-app notifications are committed together. Administrators are notified of new tickets and user replies; the other party is notified of administrator replies and the creator is notified of administrative updates. Notifications exclude message bodies and use event-specific deduplication keys. Migration `b7d4e2f9a630` follows `a9c3d7e1f640`. This is backend-only ticketing: it excludes a frontend, attachments, email/SMS/push delivery, and external help-desk integration.
+
 ## Tech Stack
 
 - Python
@@ -61,6 +69,24 @@ Authenticated users read only their own notifications through `GET /notification
 - Redis
 - Docker
 - Pytest
+
+## Local Docker development and isolated testing
+
+Docker Desktop must be installed and running before these commands can be used. The `Dockerfile` is the recipe for the API image; `docker-compose.yml` runs that image and a private PostgreSQL container; `marketplace_postgres_data` is a named volume containing only the container database. PostgreSQL has no host port, while the API is bound to `127.0.0.1:8000`. The application waits for PostgreSQL health, then applies migrations to its Compose database.
+
+Copy `.env.docker.example` to `.env.docker`, replace the placeholder password and secret, then run:
+
+```powershell
+docker compose --env-file .env.docker up --build
+```
+
+Compose creates `marketplace_dev` and a separate `marketplace_test` database inside its own PostgreSQL volume. Never point either `DATABASE_URL` or a test command at a development or production database. After Docker is available, run isolated tests in a one-off container:
+
+```powershell
+docker compose --env-file .env.docker run --rm -e DATABASE_URL=postgresql+asyncpg://marketplace:YOUR_PASSWORD@db:5432/marketplace_test app sh -c "alembic upgrade head && pytest"
+```
+
+Stop the local stack with `docker compose --env-file .env.docker down`. Do not add `-v` unless you intentionally want to delete that disposable Compose volume. `requirements-dev.txt` provides pytest tooling. The existing smoke script contacts a running API; the workflow script creates an order and changes stock. Neither should target a non-disposable environment.
 
 ## Project Status
 

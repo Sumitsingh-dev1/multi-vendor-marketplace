@@ -33,6 +33,7 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.payment import router as payment_router
 from app.api.routes.review import router as review_router
 from app.api.routes.notification import router as notification_router
+from app.api.routes.support import router as support_router
 
 from datetime import datetime, timezone
 
@@ -86,6 +87,7 @@ app.include_router(admin_router)
 app.include_router(payment_router)
 app.include_router(review_router)
 app.include_router(notification_router)
+app.include_router(support_router)
 
 # =========================================================
 # HOME

@@ -28,6 +28,7 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.seller_application import SellerApplication, SellerApplicationStatus
 from app.models.review import Review
 from app.models.notification import Notification
+from app.models.support import SupportMessage, SupportTicket
 
 
 def make_sync_database_url(database_url: str) -> str:
