@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     DateTime
 )
+
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.address import Address
 
@@ -60,10 +61,9 @@ class Customer(Base):
         default=True,
         nullable=False
     )
-
     created_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow,
-        nullable=False
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
     )
 
     role: Mapped[UserRole] = mapped_column(
