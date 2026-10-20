@@ -1,93 +1,237 @@
 # Multi-Vendor Marketplace Backend
 
-A production-oriented REST API for a multi-vendor marketplace built with FastAPI.
+A backend REST API for a multi-vendor e-commerce marketplace built with **FastAPI, Python, and PostgreSQL**. The platform supports customer accounts, seller onboarding, product and inventory management, shopping carts, orders, COD payments, delivery assignments, reviews, notifications, and support tickets.
 
-## Project Overview
+This project demonstrates backend development concepts including JWT authentication, role-based authorization, asynchronous database access, transactional inventory management, database migrations, and automated testing.
 
-This project allows multiple sellers to manage products and inventory while customers can browse products, add items to a cart, place orders, and make payments.
+## Features
 
-## Planned Features
+### Authentication and Account Security
+- Customer registration and login using JWT authentication.
+- Password hashing and validation.
+- Role-based access control.
+- Secure seller onboarding through administrator approval.
+- Password reset functionality.
+- Session invalidation following password changes.
 
-- User authentication with JWT
-- Customer, seller, and admin roles
-- Product and category management
-- Product image uploads
-- Inventory management
-- Shopping cart
-- Order management
-- Payment integration
-- Product reviews
-- Search, filtering, and pagination
-- Email notifications
-- Redis caching
-- Background tasks
-- Automated testing
-- Docker
-- CI/CD
-- Production deployment
+### Seller Management
+- Seller application submission and administrative review.
+- Seller-specific product management.
+- Inventory management.
+- Seller service-area management.
 
-## Security and account provisioning
+### Product Catalog
+- Product and category management.
+- Product image upload support.
+- Product reviews and ratings.
+- Administrative review moderation.
+- Aggregate ratings based on visible reviews.
 
-Public `POST /customers` registration creates customer accounts only; role fields are rejected. Customers submit `POST /seller-applications/`, then an administrator reviews a pending application at `PATCH /seller-applications/{application_id}` with `approved` or `rejected`. Only approval grants seller access.
+### Shopping Cart and Orders
+- Shopping cart management.
+- Order creation and management.
+- Atomic inventory deduction during order creation.
+- Inventory restoration when an eligible item is cancelled.
+- Checkout idempotency using the optional `Idempotency-Key` request header.
+- Customer-specific order access.
 
-After applying migrations to a fresh database, manually provision the sole initial administrator with `python scripts/provision_first_admin.py`. It securely prompts for credentials and refuses if an administrator already exists.
+### Payments
+- Cash on Delivery (COD) checkout.
+- Payment amounts calculated from persisted order-item prices.
+- COD collection by an assigned delivery agent.
+- Exact amount verification using integer paise.
+- Duplicate collection prevention.
+- COD delivery completion restricted until collection is recorded.
 
-Set `ENABLE_DB_TEST_ENDPOINT=true` only for local development. The minimal `/db-test` connectivity endpoint is not registered by default. `SMTP_TIMEOUT_SECONDS` defaults to 10; passwords require at least 8 characters.
+**Payment limitation:** Razorpay checkout is not yet available. Gateway order creation, signature verification, webhooks, capture, retries, and refund handling must be implemented and verified before gateway payments can be enabled.
 
-## Order and inventory policy
+### Delivery Management
+- Delivery assignments.
+- Delivery-agent access controls.
+- Shipment status management.
+- COD collection integrated with delivery workflows.
 
-Inventory is deducted atomically when an order is created and restored once when an eligible item is cancelled. `Idempotency-Key` is an optional request header for checkout and Buy Now, unique per customer and operation; a completed replay returns the original order.
+### Reviews and Ratings
+- Review eligibility verified against delivered order items.
+- One review per eligible order item.
+- Customer review management.
+- Administrative review visibility controls.
+- Hidden reviews excluded from public review listings and catalog rating summaries.
 
-## COD payments
+### In-App Notifications
+- User-specific notification access.
+- Unread notification counts.
+- Pagination and unread-only filtering.
+- Individual and bulk read operations.
+- Database-backed notifications for supported marketplace events.
 
-Checkout defaults to `payment_method: "cod"` and calculates the due amount from persisted order-item prices. It creates one pending-collection COD payment in the same transaction as the order and stock deduction. An assigned delivery agent must move the shipment to `out_for_delivery`, then call `POST /payments/orders/{order_id}/collect-cod` with the exact integer-paise amount. Collection is recorded once; only after it is collected can that COD delivery be completed. Razorpay checkout remains unavailable until gateway order creation, signature verification, webhooks, retries, capture, and refund flows are fully configured and verified.
+Email, SMS, and push notification delivery are not included.
 
-## Product reviews
+### Support Tickets
+- Ticket creation by eligible customers, sellers, and delivery agents.
+- Ticket messages and chronological message pagination.
+- Ticket ownership enforcement.
+- Administrative assignment, prioritization, filtering, and status management.
+- Ticket reopening by owners.
+- Restrictions on replies to closed tickets.
+- Database-backed notifications for supported ticket events.
 
-Customers may create one review per delivered order item at `POST /products/{product_id}/reviews`; server-side eligibility verifies the authenticated customer, product/listing match, and delivered item. Public reviews are listed at `GET /products/{product_id}/reviews`; customers manage their own reviews at `GET /reviews/me`, `PATCH /reviews/{review_id}`, and `DELETE /reviews/{review_id}`. Administrators can hide or restore a review with `PATCH /admin/reviews/{review_id}/visibility`. Hidden reviews are excluded from public lists and catalog rating summaries. Catalog ratings are aggregate queries over visible reviews. Migration `f2b5e8a7c430` follows `e7a4c1d8b920`.
+The support system is backend-only. It does not include a frontend, attachments, external help-desk integration, or email/SMS/push delivery.
 
-## In-app notifications
+## Technology Stack
 
-Authenticated users read only their own notifications through `GET /notifications/me`, with `unread_only`, pagination, `GET /notifications/me/unread-count`, `PATCH /notifications/{id}/read`, and `PATCH /notifications/me/read-all`. Notifications cover supported order, seller-item, delivery, and COD-collection events. They are database-backed only: email, SMS, and push delivery are not included. Migration `a9c3d7e1f640` follows `f2b5e8a7c430`.
+- **Language:** Python
+- **API framework:** FastAPI
+- **Database:** PostgreSQL
+- **ORM:** SQLAlchemy
+- **Validation:** Pydantic
+- **Database migrations:** Alembic
+- **Testing:** pytest
+- **Containerization:** Docker and Docker Compose
 
-## Support tickets
+Redis is not described as an implemented feature in this README. Add it to the active technology stack only if the application currently uses it.
 
-Active customers, sellers, and delivery agents create tickets with an initial message at `POST /support/tickets`; an optional order link is validated server-side against the caller's customer order, seller listing in the order, or delivery assignment. Ticket owners list their own tickets at `GET /support/tickets/me`, view a ticket at `GET /support/tickets/{id}`, read paginated chronological messages at `GET /support/tickets/{id}/messages`, reply at `POST /support/tickets/{id}/messages`, and reopen their own resolved or closed ticket at `POST /support/tickets/{id}/reopen`.
+## Architecture
 
-Tickets begin `open`. Administrators use `GET /admin/support/tickets` (pagination plus status, priority, category, assignee, and creator filters) and `PATCH /admin/support/tickets/{id}` to assign active administrators, set priority, and transition tickets: `open` to `in_progress`, `resolved`, or `closed`; `in_progress`/`waiting_for_user` among their permitted progression to `waiting_for_user`, `resolved`, or `closed`; and `resolved` to `closed`. Owners may reopen `resolved` or `closed` tickets to `open`. Closed tickets cannot receive replies until reopened. Ticket access is limited to its creator and administrators.
+The application follows a layered backend structure:
 
-Ticket creation, its first message, replies, state changes, and their applicable database-backed in-app notifications are committed together. Administrators are notified of new tickets and user replies; the other party is notified of administrator replies and the creator is notified of administrative updates. Notifications exclude message bodies and use event-specific deduplication keys. Migration `b7d4e2f9a630` follows `a9c3d7e1f640`. This is backend-only ticketing: it excludes a frontend, attachments, email/SMS/push delivery, and external help-desk integration.
+- **API routes:** HTTP endpoints and request handling.
+- **Schemas:** Request and response validation.
+- **Models:** Database entities.
+- **Services:** Business logic.
+- **Dependencies:** Database sessions and authentication/authorization checks.
+- **Migrations:** Version-controlled database schema changes.
+- **Tests:** Unit and database-backed integration tests.
 
-## Tech Stack
+See the repository structure for the implementation details.
+
+## Security and Account Provisioning
+
+Public `POST /customers` registration creates customer accounts only. Role fields are rejected during registration.
+
+Seller access is granted through an approval workflow:
+
+1. A customer submits an application using `POST /seller-applications/`.
+2. An administrator reviews the application using `PATCH /seller-applications/{application_id}`.
+3. The administrator approves or rejects the application.
+4. Seller access is granted only after approval.
+
+After applying migrations to a fresh database, provision the initial administrator using:
+
+```powershell
+python scripts/provision_first_admin.py
+```
+
+The script securely prompts for credentials and refuses to create another administrator if one already exists.
+
+The `/db-test` endpoint is not registered by default. Set `ENABLE_DB_TEST_ENDPOINT=true` only for local development.
+
+Passwords require at least eight characters. The SMTP timeout defaults to ten seconds.
+
+## Order and Inventory Consistency
+
+Inventory is deducted atomically when an order is created and restored once when an eligible item is cancelled.
+
+Checkout and Buy Now support the optional `Idempotency-Key` request header. Keys are unique per customer and operation; a completed replay returns the original order.
+
+These mechanisms help prevent duplicate checkout processing and inconsistent inventory updates.
+
+## Local Development with Docker
+
+### Prerequisites
 
 - Python
-- FastAPI
-- PostgreSQL
-- SQLAlchemy
-- Pydantic
-- Alembic
-- Redis
-- Docker
-- Pytest
+- Docker Desktop
+- Git
 
-## Local Docker development and isolated testing
+### 1. Clone the repository
 
-Docker Desktop must be installed and running before these commands can be used. The `Dockerfile` is the recipe for the API image; `docker-compose.yml` runs that image and a private PostgreSQL container; `marketplace_postgres_data` is a named volume containing only the container database. PostgreSQL has no host port, while the API is bound to `127.0.0.1:8000`. The application waits for PostgreSQL health, then applies migrations to its Compose database.
+```powershell
+git clone https://github.com/Sumitsingh-dev1/multi-vendor-marketplace.git
+cd multi-vendor-marketplace
+```
 
-Copy `.env.docker.example` to `.env.docker`, replace the placeholder password and secret, then run:
+### 2. Configure environment variables
+
+Copy the Docker environment template:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+```
+
+Edit `.env.docker` and replace the placeholder database password and secret values with secure local values.
+
+**Never commit `.env`, `.env.docker`, or other files containing credentials or secrets.**
+
+### 3. Start the application
+
+Ensure Docker Desktop is running, then execute:
 
 ```powershell
 docker compose --env-file .env.docker up --build
 ```
 
-Compose creates `marketplace_dev` and a separate `marketplace_test` database inside its own PostgreSQL volume. Never point either `DATABASE_URL` or a test command at a development or production database. After Docker is available, run isolated tests in a one-off container:
+The Compose configuration starts the API and its PostgreSQL service. The application waits for PostgreSQL health and applies database migrations.
+
+The API is bound to `127.0.0.1:8000`, and PostgreSQL is not exposed through a host port by the documented Compose configuration.
+
+### 4. Open the API documentation
+
+With the application running, visit:
+
+- Swagger UI: http://127.0.0.1:8000/docs
+- ReDoc: http://127.0.0.1:8000/redoc
+
+These interfaces allow you to explore the available endpoints and inspect request and response schemas.
+
+### 5. Stop the application
 
 ```powershell
-docker compose --env-file .env.docker run --rm -e DATABASE_URL=postgresql+asyncpg://marketplace:YOUR_PASSWORD@db:5432/marketplace_test app sh -c "alembic upgrade head && pytest"
+docker compose --env-file .env.docker down
 ```
 
-Stop the local stack with `docker compose --env-file .env.docker down`. Do not add `-v` unless you intentionally want to delete that disposable Compose volume. `requirements-dev.txt` provides pytest tooling. The existing smoke script contacts a running API; the workflow script creates an order and changes stock. Neither should target a non-disposable environment.
+Avoid adding `-v` unless you intentionally want to remove the Compose database volume and its stored data.
 
-## Project Status
+## Automated Testing
 
-🚧 Currently under development.
+The project includes unit tests and opt-in database integration tests.
+
+The Docker setup provides separate `marketplace_dev` and `marketplace_test` databases.
+
+Run the integration test suite only against the isolated test database:
+
+```powershell
+docker compose --env-file .env.docker run --build --rm `
+    -e DATABASE_URL="postgresql+asyncpg://marketplace:YOUR_PASSWORD@db:5432/marketplace_test" `
+    -e RUN_DB_INTEGRATION_TESTS=1 `
+    app python -m pytest -q
+```
+
+Replace `YOUR_PASSWORD` with the local Docker database password. Do not use a development or production database URL for tests.
+
+The project has previously passed a Docker-backed test run, including authorization integration tests. Rerun the suite against the current code before publishing a new test result.
+
+The legacy smoke and workflow scripts may contact a running API, create orders, or change inventory. Do not run them against a shared or production environment.
+
+## Current Project Status
+
+The core marketplace backend features have been implemented, including authentication, seller approval, product management, cart and order workflows, COD payments, delivery assignments, reviews, notifications, and support tickets.
+
+The project includes Docker-based development and testing infrastructure.
+
+Gateway payment integration, external notification delivery, a frontend, and production deployment are not claimed as completed features.
+
+## Future Improvements
+
+Potential next steps include:
+
+- Razorpay integration with verified webhooks and refund handling.
+- Email, SMS, or push notifications.
+- Redis caching, if needed.
+- Continuous integration and automated checks.
+- Frontend development.
+- Production deployment and monitoring.
+
+## License
+
+No license has been specified yet. Add a license file if you intend to distribute or reuse the project under explicit terms.
