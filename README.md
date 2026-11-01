@@ -1,8 +1,31 @@
 # Multi-Vendor Marketplace Backend
 
+[![CI](https://github.com/Sumitsingh-dev1/multi-vendor-marketplace/actions/workflows/ci.yml/badge.svg)](https://github.com/Sumitsingh-dev1/multi-vendor-marketplace/actions/workflows/ci.yml)
+
 A backend REST API for a multi-vendor e-commerce marketplace built with **FastAPI, Python, and PostgreSQL**. The platform supports customer accounts, seller onboarding, product and inventory management, shopping carts, orders, COD payments, delivery assignments, reviews, notifications, and support tickets.
 
 This project demonstrates backend development concepts including JWT authentication, role-based authorization, asynchronous database access, transactional inventory management, database migrations, and automated testing.
+
+## Key API Endpoints
+
+| Method | Path | Who can use it |
+| --- | --- | --- |
+| POST | `/customers` | Anyone (creates a customer account) |
+| POST | `/login` | Anyone with customer credentials |
+| GET | `/products/` | Anyone |
+| POST | `/products/` | Approved sellers |
+| GET | `/cart/` | Authenticated customers (their own cart) |
+| PATCH | `/cart/items/{cart_item_id}` | Authenticated customers (their own cart) |
+| POST | `/order/` | Authenticated customers |
+| GET | `/order/` | Authenticated customers (their orders) |
+| POST | `/seller-applications/` | Authenticated customers |
+| PATCH | `/seller-applications/{application_id}` | Administrators |
+| POST | `/payments/orders/{order_id}/collect-cod` | Assigned delivery agents |
+| POST | `/support/tickets` | Authenticated customers, sellers, and delivery agents |
+
+## Screenshots
+
+Add Swagger UI screenshots in `docs/images/`.
 
 ## Features
 
@@ -228,10 +251,9 @@ Potential next steps include:
 - Razorpay integration with verified webhooks and refund handling.
 - Email, SMS, or push notifications.
 - Redis caching, if needed.
-- Continuous integration and automated checks.
 - Frontend development.
 - Production deployment and monitoring.
 
 ## License
 
-No license has been specified yet. Add a license file if you intend to distribute or reuse the project under explicit terms.
+This project is licensed under the [MIT License](LICENSE).
