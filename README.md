@@ -25,7 +25,11 @@ This project demonstrates backend development concepts including JWT authenticat
 
 ## Screenshots
 
-Add Swagger UI screenshots in `docs/images/`.
+### API overview (Swagger UI)
+![API overview](docs/images/swagger-overview.png)
+
+### Checkout with idempotency key
+![Create order endpoint](docs/images/swagger-order-endpoint.png)
 
 ## Features
 
