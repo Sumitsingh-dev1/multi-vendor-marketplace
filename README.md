@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/Sumitsingh-dev1/multi-vendor-marketplace/actions/workflows/ci.yml/badge.svg)](https://github.com/Sumitsingh-dev1/multi-vendor-marketplace/actions/workflows/ci.yml)
 
+**Live demo:** [API docs (Swagger UI)](https://multi-vendor-marketplace-7uq9.onrender.com/docs)
+
+> Demo deployment on free hosting: the first request after idle can take up to a minute to wake the service. Password-reset emails are disabled in the demo, and uploaded product images are not persistent.
+
+
 A backend REST API for a multi-vendor e-commerce marketplace built with **FastAPI, Python, and PostgreSQL**. The platform supports customer accounts, seller onboarding, product and inventory management, shopping carts, orders, COD payments, delivery assignments, reviews, notifications, and support tickets.
 
 This project demonstrates backend development concepts including JWT authentication, role-based authorization, asynchronous database access, transactional inventory management, database migrations, and automated testing.
